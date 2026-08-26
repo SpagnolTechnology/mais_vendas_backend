@@ -1,0 +1,400 @@
+{
+  "info": {
+    "_postman_id": "sales-mvp-full-flow",
+    "name": "Sales MVP - Fluxos Completos",
+    "description": "Collection com setup compartilhado e dois fluxos de venda.\n\n**Antes de rodar:**\n1. API em `http://localhost:5047`\n2. Migration executada para o CNPJ do JWT\n3. Variável `token` com JWT válido (email, cnpj, role, timeZone, unique_name)\n\n**Como executar no Postman (Run Collection):**\n- **Tudo:** desmarque nada → Setup + Proposta + Venda Direta (consome 3 unidades de estoque)\n- **Só proposta:** rode a pasta `01 - Setup` + `02 - Fluxo Proposta → Venda`\n- **Só venda direta:** rode a pasta `01 - Setup` + `03 - Fluxo Venda Direta`\n\n**Newman — venda direta apenas:**\n`newman run Sales-MVP-Full-Flow.postman_collection.json --folder \"01 - Setup\" --folder \"03 - Fluxo Venda Direta\" --env-var \"token=SEU_JWT\"`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5047" },
+    { "key": "token", "value": "COLE_SEU_JWT_AQUI" },
+    { "key": "unitOfMeasureId", "value": "" },
+    { "key": "productId", "value": "" },
+    { "key": "supplierId", "value": "" },
+    { "key": "paymentConditionId", "value": "" },
+    { "key": "purchaseEntryId", "value": "" },
+    { "key": "proposalId", "value": "" },
+    { "key": "saleIdFromProposal", "value": "" },
+    { "key": "directSaleId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - Setup (cadastros + estoque)",
+      "description": "Passos 01–07. Obrigatório antes de qualquer fluxo de venda.",
+      "item": [
+        {
+          "name": "01 - Criar Unidade de Medida",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('unitOfMeasureId', body.id);",
+                  "console.log('unitOfMeasureId =', body.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Unidade\",\n  \"abbreviation\": \"UN\",\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/UnitOfMeasures"
+          }
+        },
+        {
+          "name": "02 - Criar Produto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('productId', body.id);",
+                  "console.log('productId =', body.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unitOfMeasureId\": {{unitOfMeasureId}},\n  \"name\": \"Betoneira 400L\",\n  \"sku\": \"BET-400\",\n  \"description\": \"Betoneira profissional 400 litros\",\n  \"unitPrice\": 0,\n  \"costPrice\": 0,\n  \"markupPercent\": 30,\n  \"icmsPercent\": 18,\n  \"issPercent\": 5,\n  \"pisPercent\": 1.65,\n  \"cofinsPercent\": 7.6,\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/Products"
+          }
+        },
+        {
+          "name": "03 - Criar Fornecedor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('supplierId', body.id);",
+                  "console.log('supplierId =', body.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fornecedor Equipamentos LTDA\",\n  \"document\": \"12345678000199\",\n  \"email\": \"compras@fornecedor.com.br\",\n  \"phone\": \"11999998888\",\n  \"address\": \"Rua das Industrias, 100\",\n  \"city\": \"Sao Paulo\",\n  \"state\": \"SP\",\n  \"zipCode\": \"01001000\",\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/Suppliers"
+          }
+        },
+        {
+          "name": "04 - Criar Condição de Pagamento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('paymentConditionId', body.id);",
+                  "console.log('paymentConditionId =', body.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"30/60/90 dias\",\n  \"installmentCount\": 3,\n  \"daysUntilFirstDue\": 30,\n  \"daysBetweenInstallments\": 30,\n  \"cashDiscountPercent\": 5,\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/PaymentConditions"
+          }
+        },
+        {
+          "name": "05 - Criar Regra Comissão Global",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "console.log('Regra comissão criada id =', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": null,\n  \"calculationScope\": 1,\n  \"commissionPercent\": 5,\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/CommissionRules"
+          }
+        },
+        {
+          "name": "06 - Criar Entrada NF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('purchaseEntryId', body.id);",
+                  "console.log('purchaseEntryId =', body.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": {{supplierId}},\n  \"invoiceNumber\": \"123456\",\n  \"invoiceSeries\": \"1\",\n  \"invoiceKey\": \"35260812345678000199550010001234561123456789\",\n  \"entryDate\": \"2026-08-17T10:00:00\",\n  \"notes\": \"Entrada inicial de estoque\",\n  \"items\": [\n    {\n      \"productId\": {{productId}},\n      \"quantity\": 50,\n      \"unitCost\": 1200.00,\n      \"markupPercent\": 30\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/ProductPurchaseEntries"
+          }
+        },
+        {
+          "name": "07 - Confirmar Entrada NF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Entrada confirmada', () => pm.expect(body.status).to.eql(2));",
+                  "console.log('=== SETUP CONCLUIDO ===');",
+                  "console.log('Estoque fisico: 50 unidades | Preco venda esperado: 1560.00');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/ProductPurchaseEntries/{{purchaseEntryId}}/confirm"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Fluxo Proposta → Venda",
+      "description": "Proposta → Enviar → Aprovar → Converter (venda já confirmada). Consome 2 unidades de estoque.",
+      "item": [
+        {
+          "name": "08 - Criar Proposta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('proposalId', body.id);",
+                  "console.log('proposalId =', body.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalClientId\": \"CLIENT-001\",\n  \"paymentConditionId\": {{paymentConditionId}},\n  \"saleType\": 2,\n  \"validUntil\": \"2026-12-31T23:59:59\",\n  \"notes\": \"Proposta locacao betoneira\",\n  \"items\": [\n    {\n      \"productId\": {{productId}},\n      \"quantity\": 2,\n      \"unitPrice\": 1560.00,\n      \"discountPercent\": 0,\n      \"discountAmount\": 0,\n      \"icmsPercent\": null,\n      \"issPercent\": null,\n      \"pisPercent\": null,\n      \"cofinsPercent\": null\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/Proposals"
+          }
+        },
+        {
+          "name": "09 - Enviar Proposta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status Sent', () => pm.expect(pm.response.json().status).to.eql(2));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/Proposals/{{proposalId}}/send"
+          }
+        },
+        {
+          "name": "10 - Aprovar Proposta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status Approved', () => pm.expect(pm.response.json().status).to.eql(3));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/Proposals/{{proposalId}}/approve"
+          }
+        },
+        {
+          "name": "11 - Converter Proposta em Venda",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('saleIdFromProposal', body.id);",
+                  "pm.test('Venda confirmada', () => pm.expect(body.status).to.eql(2));",
+                  "pm.test('Cobrança gerada', () => pm.expect(body.externalBillingId).to.be.a('string').and.not.empty);",
+                  "console.log('=== FLUXO PROPOSTA CONCLUIDO ===');",
+                  "console.log('saleId =', body.id);",
+                  "console.log('saleNumber =', body.number);",
+                  "console.log('externalBillingId =', body.externalBillingId);",
+                  "console.log('totalAmount =', body.totalAmount);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/Proposals/{{proposalId}}/convert-to-sale"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Fluxo Venda Direta",
+      "description": "POST /Sales (pendente) → POST /confirm. Consome 1 unidade de estoque.",
+      "item": [
+        {
+          "name": "12 - Criar Venda Direta (pendente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('directSaleId', body.id);",
+                  "pm.test('Venda pendente', () => pm.expect(body.status).to.eql(1));",
+                  "console.log('directSaleId =', body.id);",
+                  "console.log('saleNumber =', body.number);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proposalId\": null,\n  \"externalClientId\": \"CLIENT-002\",\n  \"paymentConditionId\": {{paymentConditionId}},\n  \"saleType\": 1,\n  \"items\": [\n    {\n      \"productId\": {{productId}},\n      \"quantity\": 1,\n      \"unitPrice\": 1560.00,\n      \"discountPercent\": 0,\n      \"discountAmount\": 0,\n      \"icmsPercent\": 18,\n      \"issPercent\": 5,\n      \"pisPercent\": 1.65,\n      \"cofinsPercent\": 7.6\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/Sales"
+          }
+        },
+        {
+          "name": "13 - Confirmar Venda Direta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Venda confirmada', () => pm.expect(body.status).to.eql(2));",
+                  "pm.test('Cobrança gerada', () => pm.expect(body.externalBillingId).to.be.a('string').and.not.empty);",
+                  "pm.test('Comissão calculada', () => pm.expect(body.commissionAmount).to.be.above(0));",
+                  "console.log('=== FLUXO VENDA DIRETA CONCLUIDO ===');",
+                  "console.log('directSaleId =', body.id);",
+                  "console.log('saleNumber =', body.number);",
+                  "console.log('externalBillingId =', body.externalBillingId);",
+                  "console.log('totalAmount =', body.totalAmount);",
+                  "console.log('commissionAmount =', body.commissionAmount);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/Sales/{{directSaleId}}/confirm"
+          }
+        },
+        {
+          "name": "14 - Consultar Venda Direta (GET)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Mesmo ID', () => pm.expect(body.id).to.eql(Number(pm.collectionVariables.get('directSaleId'))));",
+                  "pm.test('Confirmada', () => pm.expect(body.status).to.eql(2));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/Sales/{{directSaleId}}"
+          }
+        }
+      ]
+    }
+  ]
+}

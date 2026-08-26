@@ -1,0 +1,125 @@
+using AppService.AppService.Interfaces;
+using AutoMapper;
+using Crosscutting.DTO.Product;
+using Crosscutting.DTO.StockMovement;
+using Domain.Entity;
+using Infrastructure.Repository.Interfaces;
+using Microsoft.AspNetCore.Http;
+
+namespace AppService.AppService.Services
+{
+    public class ProductAppService : BaseService<IProductRepository, ProductEntity>, IProductAppService
+    {
+        private readonly IProductStockRepository _productStockRepository;
+        private readonly IProposalRepository _proposalRepository;
+        private readonly IStockMovementRepository _stockMovementRepository;
+
+        public ProductAppService(
+            IMapper mapper,
+            IProductRepository repository,
+            IProductStockRepository productStockRepository,
+            IProposalRepository proposalRepository,
+            IStockMovementRepository stockMovementRepository,
+            IHttpContextAccessor httpContextAccessor) : base(mapper, repository, httpContextAccessor)
+        {
+            _productStockRepository = productStockRepository;
+            _proposalRepository = proposalRepository;
+            _stockMovementRepository = stockMovementRepository;
+        }
+
+        public async Task<IReadOnlyList<ProductResponseDTO>> GetAllAsync(CancellationToken ct = default)
+        {
+            IReadOnlyList<ProductEntity> entities = await GetAllReadOnlyAsync(ct);
+            return _mapper.Map<IReadOnlyList<ProductResponseDTO>>(entities);
+        }
+
+        public async Task<ProductResponseDTO> GetResponseByIdAsync(int id)
+        {
+            ProductEntity entity = await base.GetByIdAsync(id);
+            return _mapper.Map<ProductResponseDTO>(entity);
+        }
+
+        public async Task<ProductStockSummaryResponseDTO> GetStockSummaryAsync(int id, CancellationToken ct = default)
+        {
+            _ = await base.GetByIdAsync(id);
+
+            ProductStockEntity? stock = await _productStockRepository.GetByProductIdAsync(id, ct);
+            decimal physical = stock?.Quantity ?? 0m;
+            decimal reserved = await _proposalRepository.GetReservedQuantityByProductIdAsync(id, ct);
+
+            return new ProductStockSummaryResponseDTO
+            {
+                ProductId = id,
+                Physical = physical,
+                Reserved = reserved,
+                Available = physical - reserved
+            };
+        }
+
+        public async Task<IReadOnlyList<StockMovementResponseDTO>> GetMovementsAsync(int id, CancellationToken ct = default)
+        {
+            _ = await base.GetByIdAsync(id);
+
+            IReadOnlyList<StockMovementEntity> movements = await _stockMovementRepository.GetByProductIdAsync(id, ct);
+            return _mapper.Map<IReadOnlyList<StockMovementResponseDTO>>(movements);
+        }
+
+        public async Task<ProductResponseDTO> CreateAsync(CreateProductRequestDTO request, CancellationToken ct = default)
+        {
+            ProductEntity entity = _mapper.Map<ProductEntity>(request);
+            entity.CreatedAt = GetCurrentDateTime();
+            entity.CreatedBy = GetCurrentUserEmail();
+
+            ProductEntity createdEntity = await AddAsync(entity, ct);
+
+            await _productStockRepository.AddAsync(new ProductStockEntity
+            {
+                ProductId = createdEntity.Id,
+                Quantity = 0,
+                CreatedAt = GetCurrentDateTime(),
+                CreatedBy = GetCurrentUserEmail()
+            }, ct);
+
+            return _mapper.Map<ProductResponseDTO>(createdEntity);
+        }
+
+        public async Task<ProductResponseDTO> UpdateAsync(int id, UpdateProductRequestDTO request)
+        {
+            ProductEntity entity = await base.GetByIdAsync(id);
+
+            entity.UnitOfMeasureId = request.UnitOfMeasureId;
+            entity.Name = request.Name;
+            entity.Sku = request.Sku;
+            entity.Description = request.Description;
+            entity.UnitPrice = request.UnitPrice;
+            entity.CostPrice = request.CostPrice;
+            entity.MarkupPercent = request.MarkupPercent;
+            entity.IcmsPercent = request.IcmsPercent;
+            entity.IssPercent = request.IssPercent;
+            entity.PisPercent = request.PisPercent;
+            entity.CofinsPercent = request.CofinsPercent;
+            entity.IsActive = request.IsActive;
+            entity.UpdatedAt = GetCurrentDateTime();
+            entity.UpdatedBy = GetCurrentUserEmail();
+
+            ProductEntity updatedEntity = await EditAsync(entity);
+            return _mapper.Map<ProductResponseDTO>(updatedEntity);
+        }
+
+        public async Task DeleteAsync(int id)
+        {
+            ProductEntity entity = await base.GetByIdAsync(id);
+            await DeleteAsync(entity);
+        }
+
+        private DateTime GetCurrentDateTime()
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
+        }
+
+        private string GetCurrentUserEmail()
+        {
+            return _email;
+        }
+    }
+}
