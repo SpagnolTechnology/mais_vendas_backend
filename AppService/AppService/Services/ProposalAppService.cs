@@ -20,6 +20,7 @@ namespace AppService.AppService.Services
         private readonly IDocumentSequenceRepository _documentSequenceRepository;
         private readonly ISalesOperationsRepository _salesOperationsRepository;
         private readonly ISaleRepository _saleRepository;
+        private readonly IProposalAuthenticationAppService _proposalAuthenticationAppService;
 
         public ProposalAppService(
             IMapper mapper,
@@ -30,6 +31,7 @@ namespace AppService.AppService.Services
             IDocumentSequenceRepository documentSequenceRepository,
             ISalesOperationsRepository salesOperationsRepository,
             ISaleRepository saleRepository,
+            IProposalAuthenticationAppService proposalAuthenticationAppService,
             IHttpContextAccessor httpContextAccessor) : base(mapper, repository, httpContextAccessor)
         {
             _externalClientService = externalClientService;
@@ -38,6 +40,7 @@ namespace AppService.AppService.Services
             _documentSequenceRepository = documentSequenceRepository;
             _salesOperationsRepository = salesOperationsRepository;
             _saleRepository = saleRepository;
+            _proposalAuthenticationAppService = proposalAuthenticationAppService;
         }
 
         public async Task<IReadOnlyList<ProposalResponseDTO>> GetAllAsync(CancellationToken ct = default)
@@ -59,11 +62,17 @@ namespace AppService.AppService.Services
             if (!request.Items.Any())
                 throw new CustomBusinessException("Ops... A proposta deve conter ao menos um item.");
 
+            if (string.IsNullOrWhiteSpace(_cnpj))
+                throw new CustomBusinessException("Ops... CNPJ da empresa não informado no token.");
+
             DateTime now = GetCurrentDateTime();
-            string userEmail = GetCurrentUserEmail();
+            string userEmail = GetActorEmail();
+            Guid proposalUuid = Guid.NewGuid();
+            string companyCnpj = NormalizeDocument(_cnpj);
 
             ProposalEntity entity = new()
             {
+                ProposalUuid = proposalUuid,
                 ExternalClientId = request.ExternalClientId,
                 SellerEmail = userEmail,
                 PaymentConditionId = request.PaymentConditionId,
@@ -85,6 +94,8 @@ namespace AppService.AppService.Services
             await ApplyStockWarningsAsync(entity, ct);
 
             ProposalEntity createdEntity = await AddAsync(entity, ct);
+            await _proposalAuthenticationAppService.RegisterAsync(proposalUuid, companyCnpj, ct);
+
             ProposalEntity entityWithItems = await GetProposalWithItemsAsync(createdEntity.Id, ct);
             return _mapper.Map<ProposalResponseDTO>(entityWithItems);
         }
@@ -100,7 +111,7 @@ namespace AppService.AppService.Services
                 throw new CustomBusinessException("Ops... A proposta deve conter ao menos um item.");
 
             DateTime now = GetCurrentDateTime();
-            string userEmail = GetCurrentUserEmail();
+            string userEmail = GetActorEmail();
 
             entity.ExternalClientId = request.ExternalClientId;
             entity.PaymentConditionId = request.PaymentConditionId;
@@ -141,7 +152,7 @@ namespace AppService.AppService.Services
                 throw new CustomBusinessException("Ops... Somente propostas em rascunho podem ser enviadas.");
 
             DateTime now = GetCurrentDateTime();
-            string userEmail = GetCurrentUserEmail();
+            string userEmail = GetActorEmail();
 
             if (string.IsNullOrWhiteSpace(entity.Number))
                 entity.Number = await _documentSequenceRepository.GetNextNumberAsync(DocumentTypeEnum.Proposal, now.Year, ct);
@@ -155,50 +166,78 @@ namespace AppService.AppService.Services
             return _mapper.Map<ProposalResponseDTO>(entityWithItems);
         }
 
-        public async Task<ProposalResponseDTO> ApproveAsync(int id, CancellationToken ct = default)
+        public async Task<SaleResponseDTO> ApproveAsync(int id, CancellationToken ct = default)
         {
-            ProposalEntity entity = await GetProposalWithItemsAsync(id, ct);
+            ProposalEntity proposal = await GetProposalWithItemsAsync(id, ct);
+            return await ApproveProposalAsync(proposal, ct);
+        }
 
-            if (entity.Status != ProposalStatusEnum.Sent)
-                throw new CustomBusinessException("Ops... Somente propostas enviadas podem ser aprovadas.");
+        public async Task<ProposalResponseDTO> RejectAsync(int id, CancellationToken ct = default)
+        {
+            ProposalEntity proposal = await GetProposalWithItemsAsync(id, ct);
+            return await RejectProposalAsync(proposal, ct);
+        }
 
-            DateTime now = GetCurrentDateTime();
-            string userEmail = GetCurrentUserEmail();
+        public async Task<SaleResponseDTO> ApproveByProposalUuidAsync(Guid proposalUuid, CancellationToken ct = default)
+        {
+            ProposalEntity proposal = await GetProposalByUuidAsync(proposalUuid, ct);
+            return await ApproveProposalAsync(proposal, ct);
+        }
 
-            entity.Status = ProposalStatusEnum.Approved;
-            entity.UpdatedAt = now;
-            entity.UpdatedBy = userEmail;
-
-            ProposalEntity updatedEntity = await EditAsync(entity);
-            ProposalEntity entityWithItems = await GetProposalWithItemsAsync(updatedEntity.Id, ct);
-            return _mapper.Map<ProposalResponseDTO>(entityWithItems);
+        public async Task<ProposalResponseDTO> RejectByProposalUuidAsync(Guid proposalUuid, CancellationToken ct = default)
+        {
+            ProposalEntity proposal = await GetProposalByUuidAsync(proposalUuid, ct);
+            return await RejectProposalAsync(proposal, ct);
         }
 
         public async Task<SaleResponseDTO> ConvertToSaleAsync(int id, CancellationToken ct = default)
         {
             ProposalEntity proposal = await GetProposalWithItemsAsync(id, ct);
 
+            if (proposal.Status == ProposalStatusEnum.Converted)
+                throw new CustomBusinessException("Ops... Esta proposta já foi convertida em venda.");
+
             if (proposal.Status != ProposalStatusEnum.Approved)
-                throw new CustomBusinessException("Ops... Somente propostas aprovadas podem ser convertidas em venda.");
+                throw new CustomBusinessException("Ops... Somente propostas aprovadas podem ser convertidas em venda. Utilize aprovação para propostas enviadas.");
 
-            if (!proposal.Items.Any())
-                throw new CustomBusinessException("Ops... A proposta deve conter ao menos um item.");
+            EnsureProposalHasItems(proposal);
+            await EnsureStockAvailableForConversionAsync(proposal, ct);
 
-            foreach (ProposalItemEntity item in proposal.Items)
-            {
-                ProductStockEntity? stock = await _productStockRepository.GetByProductIdAsync(item.ProductId, ct);
-                decimal physical = stock?.Quantity ?? 0m;
+            return await ConvertProposalToSaleAsync(proposal, ct);
+        }
 
-                if (physical < item.Quantity)
-                {
-                    ProductEntity? product = await _productRepository.GetByIdAsync(item.ProductId);
-                    throw new CustomBusinessException(
-                        $"Ops... Estoque insuficiente para o produto {product?.Name ?? item.ProductId.ToString()}.");
-                }
-            }
+        private async Task<SaleResponseDTO> ApproveProposalAsync(ProposalEntity proposal, CancellationToken ct)
+        {
+            if (proposal.Status != ProposalStatusEnum.Sent)
+                throw new CustomBusinessException("Ops... Somente propostas enviadas podem ser aprovadas.");
+
+            EnsureProposalHasItems(proposal);
+            await EnsureStockAvailableForConversionAsync(proposal, ct);
+
+            return await ConvertProposalToSaleAsync(proposal, ct);
+        }
+
+        private async Task<ProposalResponseDTO> RejectProposalAsync(ProposalEntity proposal, CancellationToken ct)
+        {
+            if (proposal.Status != ProposalStatusEnum.Sent)
+                throw new CustomBusinessException("Ops... Somente propostas enviadas podem ser recusadas.");
 
             DateTime now = GetCurrentDateTime();
-            string userEmail = GetCurrentUserEmail();
+            string userEmail = GetActorEmail();
+
+            proposal.Status = ProposalStatusEnum.Rejected;
+            proposal.UpdatedAt = now;
+            proposal.UpdatedBy = userEmail;
+
+            ProposalEntity updatedEntity = await EditAsync(proposal);
+            ProposalEntity entityWithItems = await GetProposalWithItemsAsync(updatedEntity.Id, ct);
+            return _mapper.Map<ProposalResponseDTO>(entityWithItems);
+        }
+
+        private async Task<SaleResponseDTO> ConvertProposalToSaleAsync(ProposalEntity proposal, CancellationToken ct)
+        {
+            DateTime now = GetCurrentDateTime();
+            string userEmail = GetActorEmail();
 
             SaleEntity sale = new()
             {
@@ -253,6 +292,30 @@ namespace AppService.AppService.Services
                 ?? throw new CustomBusinessException("Ops... O registro buscado não foi encontrado.");
 
             return _mapper.Map<SaleResponseDTO>(confirmedSale);
+        }
+
+        private static void EnsureProposalHasItems(ProposalEntity proposal)
+        {
+            if (!proposal.Items.Any())
+                throw new CustomBusinessException("Ops... A proposta deve conter ao menos um item.");
+        }
+
+        private async Task EnsureStockAvailableForConversionAsync(ProposalEntity proposal, CancellationToken ct)
+        {
+            foreach (ProposalItemEntity item in proposal.Items)
+            {
+                ProductStockEntity? stock = await _productStockRepository.GetByProductIdAsync(item.ProductId, ct);
+                decimal physical = stock?.Quantity ?? 0m;
+                decimal reserved = await _repository.GetReservedQuantityByProductIdAsync(item.ProductId, ct);
+                decimal available = physical - reserved;
+
+                if (available < item.Quantity)
+                {
+                    ProductEntity? product = await _productRepository.GetByIdAsync(item.ProductId);
+                    throw new CustomBusinessException(
+                        $"Ops... Estoque insuficiente para o produto {product?.Name ?? item.ProductId.ToString()}.");
+                }
+            }
         }
 
         private async Task<ProposalItemEntity> BuildProposalItemAsync(
@@ -383,6 +446,12 @@ namespace AppService.AppService.Services
                 ?? throw new CustomBusinessException("Ops... O registro buscado não foi encontrado.");
         }
 
+        private async Task<ProposalEntity> GetProposalByUuidAsync(Guid proposalUuid, CancellationToken ct)
+        {
+            return await _repository.GetByProposalUuidWithItemsAsync(proposalUuid, ct)
+                ?? throw new CustomBusinessException("Ops... O registro buscado não foi encontrado.");
+        }
+
         private static void EnsureEditable(ProposalEntity entity)
         {
             if (entity.Status != ProposalStatusEnum.Draft)
@@ -394,9 +463,14 @@ namespace AppService.AppService.Services
             return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _timeZone);
         }
 
-        private string GetCurrentUserEmail()
+        private string GetActorEmail()
         {
-            return _email;
+            return string.IsNullOrWhiteSpace(_email) ? "proposta-publica" : _email;
+        }
+
+        private static string NormalizeDocument(string document)
+        {
+            return new string(document.Where(char.IsDigit).ToArray());
         }
     }
 }

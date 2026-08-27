@@ -60,9 +60,20 @@ namespace API.Controllers
         }
 
         [HttpPost("{id:int}/approve")]
-        public async Task<ActionResult<ProposalResponseDTO>> Approve(int id, CancellationToken ct)
+        public async Task<ActionResult<SaleResponseDTO>> Approve(int id, CancellationToken ct)
         {
-            ProposalResponseDTO response = await _proposalAppService.ApproveAsync(id, ct);
+            SaleResponseDTO response = await _proposalAppService.ApproveAsync(id, ct);
+            return CreatedAtAction(
+                nameof(SalesController.GetById),
+                "Sales",
+                new { id = response.Id },
+                response);
+        }
+
+        [HttpPost("{id:int}/reject")]
+        public async Task<ActionResult<ProposalResponseDTO>> Reject(int id, CancellationToken ct)
+        {
+            ProposalResponseDTO response = await _proposalAppService.RejectAsync(id, ct);
             return Ok(response);
         }
 

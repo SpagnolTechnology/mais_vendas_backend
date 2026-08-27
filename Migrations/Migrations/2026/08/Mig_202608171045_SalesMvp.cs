@@ -92,6 +92,8 @@ namespace Migrations.Migrations._2026._08
 
                     .WithColumn("Name").AsAnsiString(255).NotNullable()
 
+                    .WithColumn("MaskName").AsAnsiString(255).Nullable()
+
                     .WithColumn("Sku").AsAnsiString(100).NotNullable()
 
                     .WithColumn("Description").AsAnsiString(1000).Nullable()
@@ -496,6 +498,8 @@ namespace Migrations.Migrations._2026._08
 
                     .WithColumn("Id").AsInt32().PrimaryKey("PK_Proposals").Identity()
 
+                    .WithColumn("ProposalUuid").AsGuid().NotNullable()
+
                     .WithColumn("Number").AsAnsiString(20).NotNullable()
 
                     .WithColumn("ExternalClientId").AsAnsiString(255).NotNullable()
@@ -537,6 +541,16 @@ namespace Migrations.Migrations._2026._08
                     .FromTable("Proposals").ForeignColumn("PaymentConditionId")
 
                     .ToTable("PaymentConditions").PrimaryColumn("Id");
+
+
+
+                Create.Index("IX_Proposals_ProposalUuid")
+
+                    .OnTable("Proposals")
+
+                    .OnColumn("ProposalUuid").Ascending()
+
+                    .WithOptions().Unique();
 
             }
 

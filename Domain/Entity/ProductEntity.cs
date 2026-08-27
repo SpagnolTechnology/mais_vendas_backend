@@ -7,6 +7,7 @@ namespace Domain.Entity
         public int Id { get; set; }
         public int UnitOfMeasureId { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string? MaskName { get; set; }
         public string Sku { get; set; } = string.Empty;
         public string? Description { get; set; }
         public decimal UnitPrice { get; set; }
@@ -20,5 +21,6 @@ namespace Domain.Entity
 
         public UnitOfMeasureEntity? UnitOfMeasure { get; set; }
         public ProductStockEntity? ProductStock { get; set; }
+        public ICollection<ProductPhotoEntity> ProductPhotos { get; set; } = new List<ProductPhotoEntity>();
     }
 }

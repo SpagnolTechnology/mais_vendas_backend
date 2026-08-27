@@ -20,15 +20,26 @@ namespace AppService.AppService
         protected readonly string _cnpj;
         protected readonly string _username;
 
+        protected BaseService(IMapper mapper, TRepository repository)
+        {
+            _mapper = mapper;
+            _repository = repository;
+            _timeZone = TZConvert.GetTimeZoneInfo(GeneralConstants.TimeZone);
+            _email = string.Empty;
+            _role = string.Empty;
+            _cnpj = string.Empty;
+            _username = string.Empty;
+        }
+
         protected BaseService(IMapper mapper, TRepository repository, IHttpContextAccessor httpContextAccessor)
         {
             _mapper = mapper;
             _repository = repository;
             _timeZone = ResolveTimeZone(httpContextAccessor);
-            _email = JwtHelper.GetEmailByToken(httpContextAccessor);
-            _role = JwtHelper.GetRoleByToken(httpContextAccessor);
-            _cnpj = JwtHelper.GetCnpjByToken(httpContextAccessor);
-            _username = JwtHelper.GetUserNameByToken(httpContextAccessor);
+            _email = ResolveClaim(() => JwtHelper.GetEmailByToken(httpContextAccessor));
+            _role = ResolveClaim(() => JwtHelper.GetRoleByToken(httpContextAccessor));
+            _cnpj = ResolveClaim(() => JwtHelper.GetCnpjByToken(httpContextAccessor));
+            _username = ResolveClaim(() => JwtHelper.GetUserNameByToken(httpContextAccessor));
         }
 
         protected async Task<TEntity> AddAsync(TEntity entity, CancellationToken ct = default)
@@ -98,12 +109,24 @@ namespace AppService.AppService
 
         private static TimeZoneInfo ResolveTimeZone(IHttpContextAccessor httpContextAccessor)
         {
-            string timeZone = JwtHelper.GetTimeZoneByToken(httpContextAccessor);
+            string timeZone = ResolveClaim(() => JwtHelper.GetTimeZoneByToken(httpContextAccessor));
 
             if (string.IsNullOrWhiteSpace(timeZone))
                 timeZone = GeneralConstants.TimeZone;
 
             return TZConvert.GetTimeZoneInfo(timeZone);
+        }
+
+        private static string ResolveClaim(Func<string> claimResolver)
+        {
+            try
+            {
+                return claimResolver();
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
     }
 }

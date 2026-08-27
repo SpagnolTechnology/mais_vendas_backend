@@ -12,6 +12,7 @@ namespace Crosscutting.IOC.Repository
             services.AddScoped<ISupplierRepository, SupplierRepository>();
             services.AddScoped<IUnitOfMeasureRepository, UnitOfMeasureRepository>();
             services.AddScoped<IProductRepository, ProductRepository>();
+            services.AddScoped<IProductPhotoRepository, ProductPhotoRepository>();
             services.AddScoped<IProductStockRepository, ProductStockRepository>();
             services.AddScoped<IPaymentConditionRepository, PaymentConditionRepository>();
             services.AddScoped<IDiscountRuleRepository, DiscountRuleRepository>();
@@ -21,6 +22,7 @@ namespace Crosscutting.IOC.Repository
             services.AddScoped<IStockAdjustmentRepository, StockAdjustmentRepository>();
             services.AddScoped<IStockMovementRepository, StockMovementRepository>();
             services.AddScoped<IProposalRepository, ProposalRepository>();
+            services.AddScoped<IProposalAuthenticationRepository, ProposalAuthenticationRepository>();
             services.AddScoped<ISaleRepository, SaleRepository>();
             services.AddScoped<IDiscountRepository, DiscountRepository>();
             services.AddScoped<ICommissionRepository, CommissionRepository>();

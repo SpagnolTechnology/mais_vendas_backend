@@ -12,5 +12,9 @@ namespace AppService.AppService.Interfaces
         Task<ProductResponseDTO> CreateAsync(CreateProductRequestDTO request, CancellationToken ct = default);
         Task<ProductResponseDTO> UpdateAsync(int id, UpdateProductRequestDTO request);
         Task DeleteAsync(int id);
+        Task<IReadOnlyList<ProductPhotoResponseDTO>> GetPhotosAsync(int productId, CancellationToken ct = default);
+        Task<ProductPhotoResponseDTO> CreatePhotoAsync(int productId, CreateProductPhotoRequestDTO request, CancellationToken ct = default);
+        Task<ProductPhotoResponseDTO> UpdatePhotoAsync(int productId, int photoId, UpdateProductPhotoRequestDTO request);
+        Task DeletePhotoAsync(int productId, int photoId);
     }
 }

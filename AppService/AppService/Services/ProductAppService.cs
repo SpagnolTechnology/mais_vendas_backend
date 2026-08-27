@@ -2,6 +2,7 @@ using AppService.AppService.Interfaces;
 using AutoMapper;
 using Crosscutting.DTO.Product;
 using Crosscutting.DTO.StockMovement;
+using Crosscutting.CustomException;
 using Domain.Entity;
 using Infrastructure.Repository.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -11,6 +12,7 @@ namespace AppService.AppService.Services
     public class ProductAppService : BaseService<IProductRepository, ProductEntity>, IProductAppService
     {
         private readonly IProductStockRepository _productStockRepository;
+        private readonly IProductPhotoRepository _productPhotoRepository;
         private readonly IProposalRepository _proposalRepository;
         private readonly IStockMovementRepository _stockMovementRepository;
 
@@ -18,11 +20,13 @@ namespace AppService.AppService.Services
             IMapper mapper,
             IProductRepository repository,
             IProductStockRepository productStockRepository,
+            IProductPhotoRepository productPhotoRepository,
             IProposalRepository proposalRepository,
             IStockMovementRepository stockMovementRepository,
             IHttpContextAccessor httpContextAccessor) : base(mapper, repository, httpContextAccessor)
         {
             _productStockRepository = productStockRepository;
+            _productPhotoRepository = productPhotoRepository;
             _proposalRepository = proposalRepository;
             _stockMovementRepository = stockMovementRepository;
         }
@@ -89,6 +93,7 @@ namespace AppService.AppService.Services
 
             entity.UnitOfMeasureId = request.UnitOfMeasureId;
             entity.Name = request.Name;
+            entity.MaskName = request.MaskName;
             entity.Sku = request.Sku;
             entity.Description = request.Description;
             entity.UnitPrice = request.UnitPrice;
@@ -110,6 +115,54 @@ namespace AppService.AppService.Services
         {
             ProductEntity entity = await base.GetByIdAsync(id);
             await DeleteAsync(entity);
+        }
+
+        public async Task<IReadOnlyList<ProductPhotoResponseDTO>> GetPhotosAsync(int productId, CancellationToken ct = default)
+        {
+            _ = await base.GetByIdAsync(productId);
+
+            IReadOnlyList<ProductPhotoEntity> photos = await _productPhotoRepository.GetByProductIdAsync(productId, ct);
+            return _mapper.Map<IReadOnlyList<ProductPhotoResponseDTO>>(photos);
+        }
+
+        public async Task<ProductPhotoResponseDTO> CreatePhotoAsync(int productId, CreateProductPhotoRequestDTO request, CancellationToken ct = default)
+        {
+            _ = await base.GetByIdAsync(productId);
+
+            ProductPhotoEntity entity = _mapper.Map<ProductPhotoEntity>(request);
+            entity.ProductId = productId;
+            entity.CreatedAt = GetCurrentDateTime();
+            entity.CreatedBy = GetCurrentUserEmail();
+
+            ProductPhotoEntity createdEntity = await _productPhotoRepository.AddAsync(entity, ct);
+            return _mapper.Map<ProductPhotoResponseDTO>(createdEntity);
+        }
+
+        public async Task<ProductPhotoResponseDTO> UpdatePhotoAsync(int productId, int photoId, UpdateProductPhotoRequestDTO request)
+        {
+            ProductPhotoEntity? entity = await _productPhotoRepository.GetByIdAndProductIdAsync(photoId, productId);
+            if (entity is null)
+            {
+                throw new CustomBusinessException("Ops... Foto do produto não encontrada.");
+            }
+
+            entity.ImageUrl = request.ImageUrl;
+            entity.UpdatedAt = GetCurrentDateTime();
+            entity.UpdatedBy = GetCurrentUserEmail();
+
+            ProductPhotoEntity updatedEntity = await _productPhotoRepository.EditAsync(entity);
+            return _mapper.Map<ProductPhotoResponseDTO>(updatedEntity);
+        }
+
+        public async Task DeletePhotoAsync(int productId, int photoId)
+        {
+            ProductPhotoEntity? entity = await _productPhotoRepository.GetByIdAndProductIdAsync(photoId, productId);
+            if (entity is null)
+            {
+                throw new CustomBusinessException("Ops... Foto do produto não encontrada.");
+            }
+
+            await _productPhotoRepository.DeleteAsync(entity);
         }
 
         private DateTime GetCurrentDateTime()

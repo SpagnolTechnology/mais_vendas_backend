@@ -22,6 +22,15 @@ namespace Infrastructure.Repository.Services
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
         }
 
+        public async Task<ProposalEntity?> GetByProposalUuidWithItemsAsync(Guid proposalUuid, CancellationToken ct = default)
+        {
+            return await _context.Set<ProposalEntity>()
+                .Include(p => p.Items)
+                .ThenInclude(i => i.Product)
+                .Include(p => p.PaymentCondition)
+                .FirstOrDefaultAsync(p => p.ProposalUuid == proposalUuid, ct);
+        }
+
         public async Task<decimal> GetReservedQuantityByProductIdAsync(int productId, CancellationToken ct = default)
         {
             var activeStatuses = new[]

@@ -11,7 +11,10 @@ namespace AppService.AppService.Interfaces
         Task<ProposalResponseDTO> UpdateAsync(int id, UpdateProposalRequestDTO request, CancellationToken ct = default);
         Task DeleteAsync(int id, CancellationToken ct = default);
         Task<ProposalResponseDTO> SendAsync(int id, CancellationToken ct = default);
-        Task<ProposalResponseDTO> ApproveAsync(int id, CancellationToken ct = default);
+        Task<SaleResponseDTO> ApproveAsync(int id, CancellationToken ct = default);
+        Task<ProposalResponseDTO> RejectAsync(int id, CancellationToken ct = default);
+        Task<SaleResponseDTO> ApproveByProposalUuidAsync(Guid proposalUuid, CancellationToken ct = default);
+        Task<ProposalResponseDTO> RejectByProposalUuidAsync(Guid proposalUuid, CancellationToken ct = default);
         Task<SaleResponseDTO> ConvertToSaleAsync(int id, CancellationToken ct = default);
     }
 }

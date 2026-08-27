@@ -28,6 +28,11 @@ namespace Infrastructure.Tenant.Provider
             });
         }
 
+        public string GetAdminConnectionString()
+        {
+            return GetRequiredConnectionString("dbconnectionadmin");
+        }
+
         private static string NormalizeCnpj(string cnpj)
         {
             string normalizedCnpj = new(cnpj.Where(char.IsDigit).ToArray());

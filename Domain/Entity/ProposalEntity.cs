@@ -6,6 +6,7 @@ namespace Domain.Entity
     public class ProposalEntity : BaseEntity
     {
         public int Id { get; set; }
+        public Guid ProposalUuid { get; set; }
         public string Number { get; set; } = string.Empty;
         public string ExternalClientId { get; set; } = string.Empty;
         public string SellerEmail { get; set; } = string.Empty;

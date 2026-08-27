@@ -65,5 +65,33 @@ namespace API.Controllers
             await _productAppService.DeleteAsync(id);
             return NoContent();
         }
+
+        [HttpGet("{id:int}/photos")]
+        public async Task<ActionResult<IReadOnlyList<ProductPhotoResponseDTO>>> GetPhotos(int id, CancellationToken ct)
+        {
+            IReadOnlyList<ProductPhotoResponseDTO> response = await _productAppService.GetPhotosAsync(id, ct);
+            return Ok(response);
+        }
+
+        [HttpPost("{id:int}/photos")]
+        public async Task<ActionResult<ProductPhotoResponseDTO>> CreatePhoto(int id, [FromBody] CreateProductPhotoRequestDTO request, CancellationToken ct)
+        {
+            ProductPhotoResponseDTO response = await _productAppService.CreatePhotoAsync(id, request, ct);
+            return CreatedAtAction(nameof(GetPhotos), new { id }, response);
+        }
+
+        [HttpPut("{productId:int}/photos/{photoId:int}")]
+        public async Task<ActionResult<ProductPhotoResponseDTO>> UpdatePhoto(int productId, int photoId, [FromBody] UpdateProductPhotoRequestDTO request)
+        {
+            ProductPhotoResponseDTO response = await _productAppService.UpdatePhotoAsync(productId, photoId, request);
+            return Ok(response);
+        }
+
+        [HttpDelete("{productId:int}/photos/{photoId:int}")]
+        public async Task<IActionResult> DeletePhoto(int productId, int photoId)
+        {
+            await _productAppService.DeletePhotoAsync(productId, photoId);
+            return NoContent();
+        }
     }
 }

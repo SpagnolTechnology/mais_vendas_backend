@@ -27,6 +27,7 @@ namespace Crosscutting.IOC.Services
             services.AddScoped<IProductPurchaseEntryAppService, ProductPurchaseEntryAppService>();
             services.AddScoped<IStockAdjustmentAppService, StockAdjustmentAppService>();
             services.AddScoped<IProposalAppService, ProposalAppService>();
+            services.AddScoped<IProposalAuthenticationAppService, ProposalAuthenticationAppService>();
             services.AddScoped<ISaleAppService, SaleAppService>();
             services.AddScoped<IDiscountAppService, DiscountAppService>();
             services.AddScoped<ICommissionAppService, CommissionAppService>();

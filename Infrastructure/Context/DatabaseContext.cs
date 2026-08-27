@@ -150,6 +150,8 @@ namespace Infrastructure.Context
 
                 entity.Property(x => x.Name).HasMaxLength(255).IsRequired();
 
+                entity.Property(x => x.MaskName).HasMaxLength(255);
+
                 entity.Property(x => x.Sku).HasMaxLength(100).IsRequired();
 
                 entity.Property(x => x.Description).HasMaxLength(1000);
@@ -197,6 +199,48 @@ namespace Infrastructure.Context
                     .HasForeignKey<ProductStockEntity>(x => x.ProductId)
 
                     .OnDelete(DeleteBehavior.Cascade);
+
+
+
+                entity.HasMany(x => x.ProductPhotos)
+
+                    .WithOne(x => x.Product)
+
+                    .HasForeignKey(x => x.ProductId)
+
+                    .OnDelete(DeleteBehavior.Cascade);
+
+            });
+
+
+
+            modelBuilder.Entity<ProductPhotoEntity>(entity =>
+
+            {
+
+                entity.ToTable("ProductPhotos");
+
+                entity.HasKey(x => x.Id);
+
+
+
+                entity.Property(x => x.Id).ValueGeneratedOnAdd();
+
+                entity.Property(x => x.ProductId).IsRequired();
+
+                entity.Property(x => x.ImageUrl).HasMaxLength(2048).IsRequired();
+
+                entity.Property(x => x.CreatedAt).IsRequired();
+
+                entity.Property(x => x.CreatedBy).HasMaxLength(255).IsRequired();
+
+                entity.Property(x => x.UpdatedAt);
+
+                entity.Property(x => x.UpdatedBy).HasMaxLength(255);
+
+
+
+                entity.HasIndex(x => x.ProductId);
 
             });
 
@@ -640,6 +684,10 @@ namespace Infrastructure.Context
 
                 entity.Property(x => x.Id).ValueGeneratedOnAdd();
 
+                entity.Property(x => x.ProposalUuid).IsRequired();
+
+                entity.HasIndex(x => x.ProposalUuid).IsUnique();
+
                 entity.Property(x => x.Number).HasMaxLength(20).IsRequired();
 
                 entity.Property(x => x.ExternalClientId).HasMaxLength(255).IsRequired();
@@ -1041,6 +1089,8 @@ namespace Infrastructure.Context
         public DbSet<UnitOfMeasureEntity> UnitOfMeasures { get; set; }
 
         public DbSet<ProductEntity> Products { get; set; }
+
+        public DbSet<ProductPhotoEntity> ProductPhotos { get; set; }
 
         public DbSet<ProductStockEntity> ProductStocks { get; set; }
 
