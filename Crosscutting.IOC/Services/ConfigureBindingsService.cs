@@ -3,6 +3,7 @@ using AppService.AppService.Interfaces;
 using AppService.AppService.Services;
 using Crosscutting.Configuration;
 using Crosscutting.External;
+using Crosscutting.Invoice;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,6 +26,9 @@ namespace Crosscutting.IOC.Services
             services.AddScoped<IDiscountRuleAppService, DiscountRuleAppService>();
             services.AddScoped<ICommissionRuleAppService, CommissionRuleAppService>();
             services.AddScoped<IProductPurchaseEntryAppService, ProductPurchaseEntryAppService>();
+            services.AddSingleton<IInvoiceXmlParser, NfeInvoiceXmlParser>();
+            services.AddSingleton<InvoiceXmlParserResolver>();
+            services.AddScoped<INfeImportAppService, NfeImportAppService>();
             services.AddScoped<IStockAdjustmentAppService, StockAdjustmentAppService>();
             services.AddScoped<IProposalAppService, ProposalAppService>();
             services.AddScoped<IProposalAuthenticationAppService, ProposalAuthenticationAppService>();

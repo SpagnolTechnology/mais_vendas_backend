@@ -20,5 +20,14 @@ namespace Infrastructure.Repository.Services
                 .Include(e => e.Supplier)
                 .FirstOrDefaultAsync(e => e.Id == id, ct);
         }
+
+        public async Task<bool> ExistsByInvoiceKeyAsync(string invoiceKey, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(invoiceKey))
+                return false;
+
+            return await _context.Set<ProductPurchaseEntryEntity>()
+                .AnyAsync(e => e.InvoiceKey == invoiceKey.Trim(), ct);
+        }
     }
 }

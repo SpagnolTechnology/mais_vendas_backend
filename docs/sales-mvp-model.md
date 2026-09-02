@@ -14,7 +14,7 @@ Documento de alinhamento para o time. Descreve entidades, regras de negócio, in
 4. [Diagrama ER — visão completa](#diagrama-er--visão-completa)
 5. [Fornecedores](#fornecedores)
 6. [Estoque](#estoque)
-7. [Entrada NF — maior custo e markup](#entrada-nf--maior-custo-e-markup)
+7. [Entrada NF — maior custo e markup](#entrada-nf--maior-custo-e-markup) (inclui [importação XML NFe](#importação-xml-nfe))
 8. [Acerto manual de estoque](#acerto-manual-de-estoque)
 9. [Proposta e venda](#proposta-e-venda)
 10. [Descontos](#descontos)
@@ -50,6 +50,9 @@ Documento de alinhamento para o time. Descreve entidades, regras de negócio, in
 | Cobrança | Referência externa via API (`ExternalBillingId`) |
 | Vendedor | Usuário logado — claim JWT `email` |
 | Desconto | Regras por JWT `role` e `email`; aplica a **mais restritiva** |
+| Importação XML NFe | Preview (upload) → revisão na UI → `import-xml/confirm` (cria + confirma + estoque) |
+| Match produto no XML | SKU (`cProd`) → EAN (`cEAN` / `Product.Ean`) → usuário vincula manualmente |
+| Fornecedor no XML | Match por CNPJ; se não cadastrado, sugere dados sem auto-criar |
 
 ---
 
@@ -65,6 +68,7 @@ CommissionCalculationScopeEnum → PerSale, PerItem
 DiscountScopeEnum              → Item, Document
 StockMovementTypeEnum          → PurchaseIn, SaleOut, AdjustmentIn, AdjustmentOut
 DocumentTypeEnum               → Proposal, Sale, PurchaseEntry, StockAdjustment
+NfeImportItemMatchStatusEnum   → MatchedBySku, MatchedByEan, Unmatched
 ```
 
 ---
@@ -162,6 +166,7 @@ erDiagram
         int UnitOfMeasureId
         string Name
         string Sku
+        string Ean "GTIN/EAN nullable, match import NFe"
         decimal UnitPrice "preco venda atualizado na entrada"
         decimal CostPrice "maior custo unitario das NFs"
         decimal MarkupPercent "markup padrao"
@@ -524,6 +529,71 @@ TotalCost                   = UnitCost × Quantity
 
 **Exemplo:** se o produto teve entradas com custo R$ 10,00, R$ 12,00 e R$ 9,00 → `CostPrice = R$ 12,00`, independentemente da ordem ou da NF mais recente.
 
+### Importação XML NFe
+
+Fluxo para dar entrada no estoque a partir de XML de NFe (layout SEFAZ 3.x/4.x). **Não substitui** a entrada manual (`POST /ProductPurchaseEntries` + `/{id}/confirm`); é um caminho alternativo com parser e matching automático.
+
+#### Sequência (2 chamadas API)
+
+```mermaid
+sequenceDiagram
+    participant UI as App
+    participant API as API
+    UI->>API: POST import-xml/preview/upload (file .xml)
+    API-->>UI: NfeImportPreviewResponseDTO
+    UI->>UI: Exibir NF, fornecedor, itens, warnings
+    UI->>UI: Usuário corrige / cadastra fornecedor / vincula produtos
+    UI->>API: POST import-xml/confirm (payload corrigido)
+    API-->>UI: ProductPurchaseEntryResponseDTO status Confirmed
+```
+
+| Passo | Endpoint | Descrição |
+|-------|----------|-----------|
+| 1 | `POST /ProductPurchaseEntries/import-xml/preview/upload` | Upload do `.xml` (`multipart`, campo `file`) |
+| 1 alt | `POST /ProductPurchaseEntries/import-xml/preview` | JSON com `xmlContent` (útil em Swagger; exige escape de aspas) |
+| 2 | `POST /ProductPurchaseEntries/import-xml/confirm` | Payload com dados **já corrigidos** na tela; cria entrada e confirma em uma operação |
+
+> O `import-xml/confirm` **não re-lê o XML**. O app envia cabeçalho + itens finais (`productId`, quantidade, custo, markup).
+
+#### Matching automático (preview)
+
+| Entidade | Regra |
+|----------|--------|
+| Fornecedor | `Supplier.Document` normalizado (só dígitos) = `emit/CNPJ` do XML |
+| Produto | 1º `Product.Sku` = `det/prod/cProd`; 2º `Product.Ean` = `det/prod/cEAN` |
+| Chave NFe duplicada | `warnings` + bloqueio no confirm se `InvoiceKey` já existir |
+
+Campos extraídos do XML:
+
+| XML | Campo sistema |
+|-----|----------------|
+| `ide/nNF` | `InvoiceNumber` |
+| `ide/serie` | `InvoiceSeries` |
+| `infNFe/@Id` ou `chNFe` | `InvoiceKey` |
+| `ide/dhEmi` | `EntryDate` |
+| `emit/*` | Sugestão de fornecedor |
+| `det/prod/qCom` | `Quantity` |
+| `det/prod/vUnCom` | `UnitCost` |
+
+#### Campo `Product.Ean`
+
+GTIN/EAN opcional no produto (`VARCHAR(14)`, índice único filtrado). Usado como fallback de match na importação. Script manual para tenants existentes: [`docs/sql/product-ean-column.sql`](sql/product-ean-column.sql).
+
+#### Arquitetura do parser
+
+- `IInvoiceXmlParser` + `NfeInvoiceXmlParser` (layout SEFAZ)
+- `InvoiceXmlParserResolver` — extensível para NFSe/CTe no futuro
+- `NfeImportAppService` — preview (parse + match) e confirm (delega a `CreateAndConfirmAsync`)
+
+#### Entrada manual vs import XML
+
+| Fluxo | Endpoints | Resultado |
+|-------|-----------|-----------|
+| Manual | `POST /ProductPurchaseEntries` → `POST /{id}/confirm` | Rascunho editável, depois confirma |
+| XML | `preview/upload` → `import-xml/confirm` | Confirma direto (`status: 2`); irreversível |
+
+Parser genérico (`IInvoiceXmlParser`) permite adicionar NFSe/CTe no futuro.
+
 ---
 
 ## Acerto manual de estoque
@@ -781,7 +851,7 @@ flowchart TB
 | Condições de pagamento | CRUD |
 | Regras de desconto | CRUD |
 | Regras de comissão | CRUD |
-| Entrada NF | CRUD + confirmar |
+| Entrada NF | CRUD + confirmar + import XML (preview + confirm) |
 | Acerto de estoque | CRUD + confirmar |
 | Estoque | `GET movimentações`, `GET stock-summary` |
 | Propostas | CRUD + aprovar + converter em venda |
@@ -804,6 +874,8 @@ flowchart TB
 ### Estoque
 - [ ] Saldo único por produto
 - [ ] Entrada NF (`Draft` → `Confirmed`, sem cancelamento)
+- [ ] Importação XML NFe (preview upload + confirm unificado)
+- [ ] Campo `Product.Ean` para match por GTIN
 - [ ] Maior custo das NFs + markup automático no preço
 - [ ] Acerto manual de estoque
 - [ ] Ledger de movimentações (`StockMovement`)
@@ -859,3 +931,4 @@ Convenções de nomenclatura: `{Name}Entity`, `I{Name}Repository`, `{Name}AppSer
 | [`api-reference-sales-mvp.md`](api-reference-sales-mvp.md) | Catálogo completo de APIs, DTOs, enums, integrações externas e sequências de fluxo |
 | [`flutter-ui-spec.md`](flutter-ui-spec.md) | Especificação de telas Flutter (mobile + web) |
 | [`postman/Sales-MVP-Full-Flow.postman_collection.json`](postman/Sales-MVP-Full-Flow.postman_collection.json) | Collection Postman com fluxo E2E |
+| [`sql/product-ean-column.sql`](sql/product-ean-column.sql) | Script PostgreSQL — coluna `Product.Ean` em tenants existentes |

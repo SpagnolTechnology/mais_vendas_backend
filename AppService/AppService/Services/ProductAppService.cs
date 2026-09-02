@@ -3,6 +3,7 @@ using AutoMapper;
 using Crosscutting.DTO.Product;
 using Crosscutting.DTO.StockMovement;
 using Crosscutting.CustomException;
+using Crosscutting.Helpers;
 using Domain.Entity;
 using Infrastructure.Repository.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -71,6 +72,7 @@ namespace AppService.AppService.Services
         public async Task<ProductResponseDTO> CreateAsync(CreateProductRequestDTO request, CancellationToken ct = default)
         {
             ProductEntity entity = _mapper.Map<ProductEntity>(request);
+            entity.Ean = NormalizeEan(request.Ean);
             entity.CreatedAt = GetCurrentDateTime();
             entity.CreatedBy = GetCurrentUserEmail();
 
@@ -95,6 +97,7 @@ namespace AppService.AppService.Services
             entity.Name = request.Name;
             entity.MaskName = request.MaskName;
             entity.Sku = request.Sku;
+            entity.Ean = NormalizeEan(request.Ean);
             entity.Description = request.Description;
             entity.UnitPrice = request.UnitPrice;
             entity.CostPrice = request.CostPrice;
@@ -173,6 +176,14 @@ namespace AppService.AppService.Services
         private string GetCurrentUserEmail()
         {
             return _email;
+        }
+
+        private static string? NormalizeEan(string? ean)
+        {
+            if (!DocumentHelper.IsValidNfeEan(ean))
+                return null;
+
+            return DocumentHelper.NormalizeDigits(ean);
         }
     }
 }

@@ -96,6 +96,8 @@ namespace Migrations.Migrations._2026._08
 
                     .WithColumn("Sku").AsAnsiString(100).NotNullable()
 
+                    .WithColumn("Ean").AsAnsiString(14).Nullable()
+
                     .WithColumn("Description").AsAnsiString(1000).Nullable()
 
                     .WithColumn("UnitPrice").AsDecimal(18, 4).NotNullable()
@@ -129,6 +131,11 @@ namespace Migrations.Migrations._2026._08
                     .FromTable("Products").ForeignColumn("UnitOfMeasureId")
 
                     .ToTable("UnitOfMeasures").PrimaryColumn("Id");
+
+
+
+                Execute.Sql(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_Products_Ean\" ON \"Products\" (\"Ean\") WHERE \"Ean\" IS NOT NULL");
 
             }
 

@@ -63,6 +63,15 @@ namespace AppService.AppService.Services
             return _mapper.Map<ProductPurchaseEntryResponseDTO>(entityWithItems);
         }
 
+        public async Task<ProductPurchaseEntryResponseDTO> CreateAndConfirmAsync(
+            CreateProductPurchaseEntryRequestDTO request,
+            CancellationToken ct = default)
+        {
+            ProductPurchaseEntryResponseDTO created = await CreateAsync(request, ct);
+            await ConfirmAsync(created.Id, ct);
+            return await GetResponseByIdAsync(created.Id, ct);
+        }
+
         public async Task<ProductPurchaseEntryResponseDTO> UpdateAsync(int id, UpdateProductPurchaseEntryRequestDTO request, CancellationToken ct = default)
         {
             ProductPurchaseEntryEntity entity = await GetEntryWithItemsAsync(id, ct);

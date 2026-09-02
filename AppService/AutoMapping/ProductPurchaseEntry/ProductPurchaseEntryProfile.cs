@@ -8,7 +8,8 @@ namespace AppService.AutoMapping.ProductPurchaseEntry
     {
         public ProductPurchaseEntryProfile()
         {
-            CreateMap<CreateProductPurchaseEntryRequestDTO, ProductPurchaseEntryEntity>();
+            CreateMap<CreateProductPurchaseEntryRequestDTO, ProductPurchaseEntryEntity>()
+                .ForMember(dest => dest.Items, opt => opt.Ignore());
             CreateMap<CreateProductPurchaseEntryItemRequestDTO, ProductPurchaseEntryItemEntity>();
             CreateMap<ProductPurchaseEntryEntity, ProductPurchaseEntryResponseDTO>();
             CreateMap<ProductPurchaseEntryItemEntity, ProductPurchaseEntryItemResponseDTO>();

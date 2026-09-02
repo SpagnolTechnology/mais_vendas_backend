@@ -343,9 +343,18 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> ListaEntradas: BottomNav Estoque
     ListaEntradas --> FormEntrada: FAB Nova Entrada
+    ListaEntradas --> ImportXml: Botao Importar XML
     FormEntrada --> ListaEntradas: Salvar Rascunho
-    ListaEntradas --> ModalConfirmarNF: Confirmar
+    ListaEntradas --> ModalConfirmarNF: Confirmar rascunho manual
+    ImportXml --> TelaRevisaoXml: POST preview/upload
+    TelaRevisaoXml --> CadastroFornecedor: Fornecedor nao encontrado
+    CadastroFornecedor --> TelaRevisaoXml: Salvar fornecedor
+    TelaRevisaoXml --> CadastroProduto: Item Unmatched
+    CadastroProduto --> TelaRevisaoXml: Salvar produto
+    TelaRevisaoXml --> ModalConfirmarImportXml: Confirmar importacao
+    ModalConfirmarImportXml --> ListaEntradas: POST import-xml/confirm
     ModalConfirmarNF --> DetalheProduto: Sucesso
+    ModalConfirmarImportXml --> DetalheProduto: Sucesso
     DetalheProduto --> [*]
 ```
 
@@ -728,13 +737,13 @@ Itens: 3 produtos
 [Confirmar] (se Draft)
 ```
 
-**FAB:** + Nova Entrada
+**FAB:** + Nova Entrada | **Importar XML** (atalho ao fluxo de revisão)
 
 **API:** `GET /ProductPurchaseEntries`
 
 ---
 
-### 7.3 Formulário Entrada NF
+### 7.3 Formulário Entrada NF (manual)
 
 **Rota:** `/stock/purchase-entries/new` | `/:id/edit` (somente Draft)
 
@@ -765,6 +774,51 @@ Itens: 3 produtos
 **Rodapé:** Salvar rascunho
 
 **API:** `POST /ProductPurchaseEntries` | `PUT /{id}`
+
+---
+
+### 7.3.1 Importação XML NFe
+
+**Acesso:** Lista Entradas NF → **Importar XML** ou botão no form de nova entrada.
+
+#### Passo 1 — Upload
+
+- Seletor de arquivo `.xml`
+- `POST /ProductPurchaseEntries/import-xml/preview/upload` (`multipart`, campo `file`)
+
+#### Passo 2 — Tela de revisão
+
+Exibir dados do `NfeImportPreviewResponseDTO`:
+
+| Área | Campos editáveis |
+|------|------------------|
+| Cabeçalho | Fornecedor (dropdown), Nº NF, Série, Chave NFe, Data, Observações |
+| Itens | Produto (dropdown), Quantidade, Custo unitário, Markup % |
+
+**Indicadores por item (`matchStatus`):**
+
+| Valor | UI |
+|-------|-----|
+| 1 MatchedBySku | Badge "SKU" + produto pré-selecionado |
+| 2 MatchedByEan | Badge "EAN" + produto pré-selecionado |
+| 3 Unmatched | Badge "Não encontrado" — usuário deve vincular ou cadastrar produto |
+
+**Warnings** (banner): fornecedor não cadastrado, chave NFe duplicada (`isDuplicateInvoiceKey`).
+
+**Ações auxiliares:**
+- `suggestedSupplier` → navegar para cadastro de fornecedor (pré-preencher form)
+- Item Unmatched → cadastrar produto com `sku` / `ean` do XML ou vincular existente
+
+#### Passo 3 — Confirmar importação
+
+**Modal** (mesmo aviso irreversível da entrada manual).
+
+`POST /ProductPurchaseEntries/import-xml/confirm` com `NfeImportConfirmRequestDTO` montado do estado da tela.
+
+- Resposta: `status: 2` (Confirmada) — **não** chamar `/{id}/confirm` depois
+- Navegar para detalhe da entrada ou resumo de estoque do produto
+
+**API:** `preview/upload` → `import-xml/confirm` (+ `POST /Suppliers` e `POST /Products` se necessário)
 
 ---
 
@@ -867,6 +921,7 @@ Estoque: 45 disp. (50 fís.)     [Ativo ✓]
 |-------|------|-------------|
 | Nome | text | Sim |
 | SKU | text | Sim |
+| EAN/GTIN | text | Não (match import NFe) |
 | Descrição | textarea | Não |
 | Unidade medida | dropdown | Sim |
 | Preço venda | decimal | Sim |
@@ -1069,11 +1124,20 @@ Dashboard → Nova Proposta → Step Cliente → Step Itens → Step Revisão
 Dashboard → Nova Venda → Cliente + Itens → Salvar e Confirmar → Detalhe Venda
 ```
 
-### Jornada 3 — Entrada de estoque
+### Jornada 3 — Entrada de estoque (manual)
 
 ```
 Estoque → Nova Entrada NF → Fornecedor + Itens → Salvar → Confirmar → Detalhe Produto/Estoque
 ```
+
+### Jornada 3b — Entrada de estoque via XML
+
+```
+Estoque → Importar XML → Upload .xml → Revisar dados → (cadastrar fornecedor/produto se necessário)
+  → Confirmar importação → Detalhe Produto/Estoque
+```
+
+API: `preview/upload` → `import-xml/confirm` (2 chamadas principais)
 
 ### Jornada 4 — Acerto inventário
 
@@ -1137,6 +1201,9 @@ Resumo por tela. Para definições completas de DTOs, enums e sequências de flu
 | Editar entrada NF | PUT | `/ProductPurchaseEntries/{id}` | `UpdateProductPurchaseEntryRequestDTO` | `ProductPurchaseEntryResponseDTO` |
 | Excluir entrada NF | DELETE | `/ProductPurchaseEntries/{id}` | — | 204 |
 | Confirmar entrada NF | POST | `/ProductPurchaseEntries/{id}/confirm` | — | `ProductPurchaseEntryResponseDTO` |
+| Preview import XML | POST | `/ProductPurchaseEntries/import-xml/preview` | `NfeImportPreviewRequestDTO` | `NfeImportPreviewResponseDTO` |
+| Preview import XML upload | POST | `/ProductPurchaseEntries/import-xml/preview/upload` | `multipart file` | `NfeImportPreviewResponseDTO` |
+| Confirmar import XML NFe | POST | `/ProductPurchaseEntries/import-xml/confirm` | `NfeImportConfirmRequestDTO` | `ProductPurchaseEntryResponseDTO` |
 | Lista acertos | GET | `/StockAdjustments` | — | `StockAdjustmentResponseDTO[]` |
 | Detalhe acerto | GET | `/StockAdjustments/{id}` | — | `StockAdjustmentResponseDTO` |
 | Criar acerto | POST | `/StockAdjustments` | `CreateStockAdjustmentRequestDTO` | `StockAdjustmentResponseDTO` |
@@ -1241,7 +1308,7 @@ FEATURES (telas conforme docs/flutter-ui-spec.md):
 
 3. ESTOQUE:
    - Hub estoque
-   - Entradas NF: form fornecedor+NF+itens (custo, markup), confirmar irreversível
+   - Entradas NF: form manual (rascunho + confirm) ou import XML (preview upload + confirm unificado)
    - Acertos manuais: motivo inventário/perda/correção, qtd +/- 
    - Produto aba estoque: cards físico/reservado/disponível + movimentações
 
@@ -1266,6 +1333,7 @@ ENUMS UI (labels pt_BR):
   Converted=Convertida, Cancelled=Cancelada
 - SaleStatus: Pending=Pendente, Confirmed=Confirmada
 - PurchaseEntryStatus: Draft=Rascunho, Confirmed=Confirmada
+- NfeImportItemMatchStatus: MatchedBySku=SKU, MatchedByEan=EAN, Unmatched=Não encontrado
 - StockMovementType: PurchaseIn=Entrada NF, SaleOut=Venda, AdjustmentIn=Acerto Entrada,
   AdjustmentOut=Acerto Saída
 - CommissionStatus: Pending=Pendente, Paid=Paga
@@ -1273,6 +1341,7 @@ ENUMS UI (labels pt_BR):
 REGRAS DE NEGÓCIO NA UI:
 - Proposta: alerta estoque indisponível mas permite salvar; bloqueia só na conversão
 - Entrada NF confirmada é irreversível — modal warning
+- Import XML: preview → revisão → confirm (não usa rascunho intermediário)
 - Custo produto = maior custo NFs (readonly, tooltip)
 - Desconto: exibir limite do usuário antes de aplicar
 - Vendedor = email JWT (readonly nos forms)

@@ -9,6 +9,7 @@ namespace Crosscutting.DTO.Product
         public string Name { get; set; } = string.Empty;
         public string? MaskName { get; set; }
         public string Sku { get; set; } = string.Empty;
+        public string? Ean { get; set; }
         public string? Description { get; set; }
         public decimal UnitPrice { get; set; }
         public decimal CostPrice { get; set; }

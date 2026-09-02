@@ -160,6 +160,14 @@ Validação via `TokenValidationAttribute` + `JwtHelper`. Algoritmo: **HS256**.
 | 3 | AdjustmentIn | Acerto entrada |
 | 4 | AdjustmentOut | Acerto saída |
 
+### NfeImportItemMatchStatusEnum
+
+| Valor | Nome | Label UI |
+|-------|------|----------|
+| 1 | MatchedBySku | Encontrado por SKU |
+| 2 | MatchedByEan | Encontrado por EAN |
+| 3 | Unmatched | Não encontrado |
+
 ---
 
 ## BaseDTO e auditoria
@@ -261,8 +269,18 @@ Campos presentes em **todos os ResponseDTO** que estendem `BaseDTO`:
 | PUT | `/ProductPurchaseEntries/{id}` | `UpdateProductPurchaseEntryRequestDTO` | `ProductPurchaseEntryResponseDTO` | 200 |
 | DELETE | `/ProductPurchaseEntries/{id}` | — | — | 204 |
 | POST | `/ProductPurchaseEntries/{id}/confirm` | — | `ProductPurchaseEntryResponseDTO` | 200 |
+| POST | `/ProductPurchaseEntries/import-xml/preview` | `NfeImportPreviewRequestDTO` | `NfeImportPreviewResponseDTO` | 200 |
+| POST | `/ProductPurchaseEntries/import-xml/preview/upload` | `multipart/form-data` (`file`) | `NfeImportPreviewResponseDTO` | 200 |
+| POST | `/ProductPurchaseEntries/import-xml/confirm` | `NfeImportConfirmRequestDTO` | `ProductPurchaseEntryResponseDTO` | 200 |
 
-> Confirmar: irreversível. Atualiza estoque, custo (maior NF), preço venda.
+**Entrada manual:** `POST` cria rascunho (`status: 1`); `POST /{id}/confirm` efetiva estoque.
+
+**Importação XML (fluxo recomendado):**
+1. `POST /import-xml/preview/upload` — `multipart/form-data`, campo `file` (`.xml`). **Não** definir `Content-Type` manualmente no Postman.
+2. Usuário revisa/corrige na UI (fornecedor, produtos, quantidades, custos).
+3. `POST /import-xml/confirm` — JSON com dados finais; cria e confirma (`status: 2`) em uma chamada.
+
+Alternativa preview: `POST /import-xml/preview` com `{ "xmlContent": "..." }` (XML como string JSON; todas as aspas internas devem ser escapadas).
 
 ---
 
@@ -404,6 +422,7 @@ Authorization: Bearer {token}
   "unitOfMeasureId": 1,
   "name": "string",
   "sku": "string",
+  "ean": "string|null",
   "description": "string|null",
   "unitPrice": 0.00,
   "costPrice": 0.00,
@@ -576,6 +595,90 @@ Authorization: Bearer {token}
   "items": [ "ProductPurchaseEntryItemResponseDTO[]" ]
 }
 ```
+
+**NfeImportPreviewRequestDTO**
+```json
+{
+  "xmlContent": "<nfeProc>...</nfeProc>"
+}
+```
+
+**NfeImportPreviewResponseDTO**
+```json
+{
+  "invoiceNumber": "123456",
+  "invoiceSeries": "1",
+  "invoiceKey": "35260812345678000199550010001234561123456789",
+  "entryDate": "2026-08-17T10:00:00",
+  "supplierMatch": {
+    "matchedSupplierId": null,
+    "suggestedSupplier": {
+      "name": "Fornecedor XYZ",
+      "document": "12345678000199",
+      "address": "Rua Exemplo, 100",
+      "city": "São Paulo",
+      "state": "SP",
+      "zipCode": "01001000"
+    }
+  },
+  "items": [
+    {
+      "lineNumber": 1,
+      "xmlProductCode": "PROD-001",
+      "xmlEan": "7891234567890",
+      "xmlProductName": "Produto A",
+      "quantity": 50.00,
+      "unitCost": 12.00,
+      "matchStatus": 1,
+      "matchedProductId": 42,
+      "matchedProductName": "Produto A",
+      "defaultMarkupPercent": 30.00
+    }
+  ],
+  "warnings": ["Fornecedor não cadastrado. Selecione ou cadastre antes de importar."],
+  "isDuplicateInvoiceKey": false
+}
+```
+
+> `matchStatus`: `1` MatchedBySku, `2` MatchedByEan, `3` Unmatched
+
+**NfeImportConfirmRequestDTO** (cria e confirma entrada)
+```json
+{
+  "supplierId": 5,
+  "invoiceNumber": "123456",
+  "invoiceSeries": "1",
+  "invoiceKey": "35260812345678000199550010001234561123456789",
+  "entryDate": "2026-08-17T10:00:00",
+  "notes": "Importado via XML",
+  "items": [
+    {
+      "productId": 42,
+      "quantity": 50.00,
+      "unitCost": 12.00,
+      "markupPercent": 30.00
+    }
+  ]
+}
+```
+
+> Enviar dados já corrigidos pelo usuário na tela (após preview). Resposta com `status: 2` (Confirmed). **Não re-envia XML** — cada item exige `productId` válido.
+
+**NfeImportConfirmItemRequestDTO** (item do confirm)
+```json
+{
+  "productId": 42,
+  "quantity": 1.00,
+  "unitCost": 289.90,
+  "markupPercent": 30.00
+}
+```
+
+**Regras do confirm:**
+- `supplierId` obrigatório
+- Todos os itens com `productId` > 0
+- `InvoiceKey` duplicada → erro 400
+- Efeitos iguais a `POST /{id}/confirm`: estoque, `CostPrice` (maior NF), `UnitPrice` (markup)
 
 ---
 
@@ -878,6 +981,32 @@ Content-Type: application/json
 | 6 | POST | `/ProductPurchaseEntries` | CreateProductPurchaseEntryRequestDTO | ProductPurchaseEntryResponseDTO |
 | 7 | POST | `/ProductPurchaseEntries/{id}/confirm` | — | ProductPurchaseEntryResponseDTO |
 | 8 | GET | `/Products/{id}/stock-summary` | — | ProductStockSummaryResponseDTO |
+
+---
+
+### Fluxo D — Entrada NF via XML NFe
+
+| # | Método | Endpoint | DTO Request | DTO Response |
+|---|--------|----------|-------------|--------------|
+| 1 | POST | `/ProductPurchaseEntries/import-xml/preview/upload` | `multipart` campo `file` | `NfeImportPreviewResponseDTO` |
+| 2 | POST | `/Suppliers` | `CreateSupplierRequestDTO` | `SupplierResponseDTO` *(se `matchedSupplierId` null)* |
+| 3 | POST | `/Products` | `CreateProductRequestDTO` | `ProductResponseDTO` *(se item `matchStatus: 3`)* |
+| 4 | POST | `/ProductPurchaseEntries/import-xml/confirm` | `NfeImportConfirmRequestDTO` | `ProductPurchaseEntryResponseDTO` |
+| 5 | GET | `/Products/{id}/stock-summary` | — | `ProductStockSummaryResponseDTO` |
+
+**Preview — campos úteis na UI:**
+
+| Campo preview | Uso na tela |
+|---------------|-------------|
+| `supplierMatch.matchedSupplierId` | Pré-selecionar fornecedor |
+| `supplierMatch.suggestedSupplier` | Form cadastro fornecedor |
+| `items[].matchStatus` | Badge SKU / EAN / Não encontrado |
+| `items[].matchedProductId` | Pré-selecionar produto |
+| `items[].defaultMarkupPercent` | Default do markup no confirm |
+| `warnings` | Alertas (fornecedor, chave duplicada) |
+| `isDuplicateInvoiceKey` | Bloquear confirm |
+
+**Confirm — montar JSON a partir do estado da tela** (não re-parsear XML).
 
 ---
 

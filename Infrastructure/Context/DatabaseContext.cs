@@ -154,6 +154,10 @@ namespace Infrastructure.Context
 
                 entity.Property(x => x.Sku).HasMaxLength(100).IsRequired();
 
+                entity.Property(x => x.Ean).HasMaxLength(14);
+
+                entity.HasIndex(x => x.Ean).IsUnique().HasFilter("\"Ean\" IS NOT NULL");
+
                 entity.Property(x => x.Description).HasMaxLength(1000);
 
                 entity.Property(x => x.UnitPrice).HasPrecision(18, 4).IsRequired();

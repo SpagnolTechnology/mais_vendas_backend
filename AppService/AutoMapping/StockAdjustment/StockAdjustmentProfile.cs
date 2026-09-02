@@ -8,7 +8,8 @@ namespace AppService.AutoMapping.StockAdjustment
     {
         public StockAdjustmentProfile()
         {
-            CreateMap<CreateStockAdjustmentRequestDTO, StockAdjustmentEntity>();
+            CreateMap<CreateStockAdjustmentRequestDTO, StockAdjustmentEntity>()
+                .ForMember(dest => dest.Items, opt => opt.Ignore());
             CreateMap<CreateStockAdjustmentItemRequestDTO, StockAdjustmentItemEntity>();
             CreateMap<StockAdjustmentEntity, StockAdjustmentResponseDTO>();
             CreateMap<StockAdjustmentItemEntity, StockAdjustmentItemResponseDTO>();
