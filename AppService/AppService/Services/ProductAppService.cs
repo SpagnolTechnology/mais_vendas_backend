@@ -38,27 +38,18 @@ namespace AppService.AppService.Services
             return _mapper.Map<IReadOnlyList<ProductResponseDTO>>(entities);
         }
 
-        public async Task<ProductResponseDTO> GetResponseByIdAsync(int id)
+        public async Task<ProductResponseDTO> GetResponseByIdAsync(int id, CancellationToken ct = default)
         {
             ProductEntity entity = await base.GetByIdAsync(id);
-            return _mapper.Map<ProductResponseDTO>(entity);
+            ProductResponseDTO response = _mapper.Map<ProductResponseDTO>(entity);
+            response.Stock = await BuildStockSummaryAsync(id, ct);
+            return response;
         }
 
         public async Task<ProductStockSummaryResponseDTO> GetStockSummaryAsync(int id, CancellationToken ct = default)
         {
             _ = await base.GetByIdAsync(id);
-
-            ProductStockEntity? stock = await _productStockRepository.GetByProductIdAsync(id, ct);
-            decimal physical = stock?.Quantity ?? 0m;
-            decimal reserved = await _proposalRepository.GetReservedQuantityByProductIdAsync(id, ct);
-
-            return new ProductStockSummaryResponseDTO
-            {
-                ProductId = id,
-                Physical = physical,
-                Reserved = reserved,
-                Available = physical - reserved
-            };
+            return await BuildStockSummaryAsync(id, ct);
         }
 
         public async Task<IReadOnlyList<StockMovementResponseDTO>> GetMovementsAsync(int id, CancellationToken ct = default)
@@ -166,6 +157,21 @@ namespace AppService.AppService.Services
             }
 
             await _productPhotoRepository.DeleteAsync(entity);
+        }
+
+        private async Task<ProductStockSummaryResponseDTO> BuildStockSummaryAsync(int productId, CancellationToken ct)
+        {
+            ProductStockEntity? stock = await _productStockRepository.GetByProductIdAsync(productId, ct);
+            decimal physical = stock?.Quantity ?? 0m;
+            decimal reserved = await _proposalRepository.GetReservedQuantityByProductIdAsync(productId, ct);
+
+            return new ProductStockSummaryResponseDTO
+            {
+                ProductId = productId,
+                Physical = physical,
+                Reserved = reserved,
+                Available = physical - reserved
+            };
         }
 
         private DateTime GetCurrentDateTime()

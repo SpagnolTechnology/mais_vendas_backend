@@ -9,7 +9,8 @@ namespace AppService.AutoMapping.Product
         public ProductProfile()
         {
             CreateMap<CreateProductRequestDTO, ProductEntity>();
-            CreateMap<ProductEntity, ProductResponseDTO>();
+            CreateMap<ProductEntity, ProductResponseDTO>()
+                .ForMember(d => d.Stock, opt => opt.Ignore());
         }
     }
 }

@@ -19,5 +19,6 @@ namespace Crosscutting.DTO.Product
         public decimal PisPercent { get; set; }
         public decimal CofinsPercent { get; set; }
         public bool IsActive { get; set; }
+        public ProductStockSummaryResponseDTO? Stock { get; set; }
     }
 }

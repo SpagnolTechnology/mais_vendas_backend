@@ -25,9 +25,9 @@ namespace API.Controllers
         }
 
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<ProductResponseDTO>> GetById(int id)
+        public async Task<ActionResult<ProductResponseDTO>> GetById(int id, CancellationToken ct)
         {
-            ProductResponseDTO response = await _productAppService.GetResponseByIdAsync(id);
+            ProductResponseDTO response = await _productAppService.GetResponseByIdAsync(id, ct);
             return Ok(response);
         }
 

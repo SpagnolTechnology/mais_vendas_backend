@@ -6,7 +6,7 @@ namespace AppService.AppService.Interfaces
     public interface IProductAppService
     {
         Task<IReadOnlyList<ProductResponseDTO>> GetAllAsync(CancellationToken ct = default);
-        Task<ProductResponseDTO> GetResponseByIdAsync(int id);
+        Task<ProductResponseDTO> GetResponseByIdAsync(int id, CancellationToken ct = default);
         Task<ProductStockSummaryResponseDTO> GetStockSummaryAsync(int id, CancellationToken ct = default);
         Task<IReadOnlyList<StockMovementResponseDTO>> GetMovementsAsync(int id, CancellationToken ct = default);
         Task<ProductResponseDTO> CreateAsync(CreateProductRequestDTO request, CancellationToken ct = default);
