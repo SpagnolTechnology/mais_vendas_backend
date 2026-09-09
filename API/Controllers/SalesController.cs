@@ -16,6 +16,13 @@ namespace API.Controllers
             _saleAppService = saleAppService;
         }
 
+        [HttpGet]
+        public async Task<ActionResult<IReadOnlyList<SaleResponseDTO>>> GetConfirmed(CancellationToken ct)
+        {
+            IReadOnlyList<SaleResponseDTO> response = await _saleAppService.GetConfirmedAsync(ct);
+            return Ok(response);
+        }
+
         [HttpGet("{id:int}")]
         public async Task<ActionResult<SaleResponseDTO>> GetById(int id, CancellationToken ct)
         {

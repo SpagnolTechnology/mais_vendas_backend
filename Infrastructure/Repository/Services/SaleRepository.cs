@@ -1,3 +1,4 @@
+using Crosscutting.Enum;
 using Domain.Entity;
 using Infrastructure.Base;
 using Infrastructure.Context;
@@ -21,6 +22,16 @@ namespace Infrastructure.Repository.Services
                 .Include(s => s.PaymentCondition)
                 .Include(s => s.Proposal)
                 .FirstOrDefaultAsync(s => s.Id == id, ct);
+        }
+
+        public async Task<IReadOnlyList<SaleEntity>> GetConfirmedAsync(CancellationToken ct = default)
+        {
+            return await _context.Set<SaleEntity>()
+                .AsNoTracking()
+                .Where(s => s.Status == SaleStatusEnum.Confirmed)
+                .OrderByDescending(s => s.SoldAt)
+                .ThenByDescending(s => s.Id)
+                .ToListAsync(ct);
         }
     }
 }

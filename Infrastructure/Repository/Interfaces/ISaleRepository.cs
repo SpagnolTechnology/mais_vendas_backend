@@ -6,5 +6,6 @@ namespace Infrastructure.Repository.Interfaces
     public interface ISaleRepository : IGenericRepository<SaleEntity>
     {
         Task<SaleEntity?> GetByIdWithDetailsAsync(int id, CancellationToken ct = default);
+        Task<IReadOnlyList<SaleEntity>> GetConfirmedAsync(CancellationToken ct = default);
     }
 }

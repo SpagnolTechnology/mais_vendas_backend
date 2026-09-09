@@ -33,6 +33,12 @@ namespace AppService.AppService.Services
             _externalClientService = externalClientService;
         }
 
+        public async Task<IReadOnlyList<SaleResponseDTO>> GetConfirmedAsync(CancellationToken ct = default)
+        {
+            IReadOnlyList<SaleEntity> entities = await _repository.GetConfirmedAsync(ct);
+            return _mapper.Map<IReadOnlyList<SaleResponseDTO>>(entities);
+        }
+
         public async Task<SaleResponseDTO> GetResponseByIdAsync(int id, CancellationToken ct = default)
         {
             SaleEntity entity = await GetSaleWithDetailsAsync(id, ct);
